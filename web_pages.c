@@ -95,6 +95,70 @@ json_object *json_add_rtp_stats(RTP_STATS *rtp_stats) {
 	return job;
 }
 
+json_object *json_add_corruption_stats(CORRUPTION_STATS *stats) {
+	json_object *job = json_object_new_object();
+	json_object *jobtemp;
+
+	jobtemp = json_object_new_uint64(stats->count);
+	json_object_object_add(job, "count", jobtemp);
+
+	jobtemp = json_object_new_int(stats->events);
+	json_object_object_add(job, "events", jobtemp);
+
+	return job;
+}
+
+json_object *json_add_pidref(PIDREF *ref) {
+	json_object *job = json_object_new_object();
+	json_object *jarray = json_object_new_array();
+	json_object *jobtemp;
+
+	jobtemp = json_object_new_int(ref->base_pid);
+	json_object_object_add(job, "base_pid", jobtemp);
+
+	json_object_object_add(job, "entries", jarray);
+
+	for (int i = 0; i < ref->num; i++) {
+		PIDREF_ENTRY *entry = &ref->entries[i];
+		if (entry->org_pid == 0)
+			continue;
+
+		json_object *jobtemp2 = json_object_new_object();
+
+		jobtemp = json_object_new_int(entry->org_pid);
+		json_object_object_add(jobtemp2, "org_pid", jobtemp);
+
+		jobtemp = json_object_new_int(entry->new_pid);
+		json_object_object_add(jobtemp2, "new_pid", jobtemp);
+
+		jobtemp = json_object_new_uint64(entry->cc_errors);
+		json_object_object_add(jobtemp2, "cc_errors", jobtemp);
+
+		json_object_array_add(jarray, jobtemp2);
+	}
+
+	return job;
+}
+
+json_object *json_add_input_stream(INPUT_STREAM *s) {
+	json_object *job = json_object_new_object();
+	json_object *jobtemp;
+
+	jobtemp = json_object_new_int(s->nit_pid);
+	json_object_object_add(job, "nit_pid", jobtemp);
+
+	jobtemp = json_object_new_int(s->pmt_pid);
+	json_object_object_add(job, "pmt_pid", jobtemp);
+
+	jobtemp = json_object_new_int(s->pcr_pid);
+	json_object_object_add(job, "pcr_pid", jobtemp);
+
+	jobtemp = json_add_pidref(s->pidref);
+	json_object_object_add(job, "pidref", jobtemp);
+
+	return job;
+}
+
 json_object *json_add_channel(CHANNEL *c) {
 	json_object *job = json_object_new_object();
 	json_object *jobtemp;
@@ -175,8 +239,14 @@ json_object *json_add_input(INPUT *r) {
 	jobtemp = json_add_rtp_stats(&r->rtp_stats);
 	json_object_object_add(job, "rtp_stats", jobtemp);
 
+	jobtemp = json_add_corruption_stats(&r->corruption_stats);
+	json_object_object_add(job, "corruption_stats", jobtemp);
+
 	jobtemp = json_add_channel(r->channel);
 	json_object_object_add(job, "channel", jobtemp);
+
+	jobtemp = json_add_input_stream(&r->stream);
+	json_object_object_add(job, "stream", jobtemp);
 
 	return job;
 }

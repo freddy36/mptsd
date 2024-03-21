@@ -55,6 +55,16 @@ typedef struct {
 } RTP_STATS;
 
 typedef struct {
+	uint64_t count;
+	uint64_t events;
+} CORRUPTION_STATS;
+
+typedef struct {
+	int8_t cc;
+    uint64_t cc_errors;
+} PID_INFO;
+
+typedef struct {
 	double kpbs;
 	double padding;
 	uint64_t traffic;
@@ -97,6 +107,9 @@ typedef struct {
 	int			radio;
 	int			lcn;
 	int			lcn_visible;
+	int 		corrupted_packets_mode; /* 	0 = process corrupted TS packets normally
+					  						1 = drop corrupted TS packets
+					  					*/
 	char *		id;
 	char *		name;
 	int			eit_mode; /* 0 = ignore EIT data from input
@@ -170,6 +183,9 @@ typedef struct {
 	uint64_t padding_period;
 	TRAFFIC_STATS traffic_stats;
 	RTP_STATS rtp_stats;
+	CORRUPTION_STATS corruption_stats;
+	PID_INFO pids[8192];
+	uint64_t cc_errors;
 
 	pthread_t thread;
 
@@ -270,7 +286,7 @@ EPG_ENTRY *	epg_new			(time_t start, int duration, char *encoding, char *event, 
 void		epg_free		(EPG_ENTRY **e);
 int			epg_changed		(EPG_ENTRY *a, EPG_ENTRY *b);
 
-CHANNEL *	channel_new		(int service_id, int is_radio, const char *id, const char *name, int eit_mode, const char *source, int channel_index, int lcn, int is_lcn_visible);
+CHANNEL *	channel_new		(int service_id, int is_radio, const char *id, const char *name, int eit_mode, int corrupted_packets_mode, const char *source, int channel_index, int lcn, int is_lcn_visible);
 void		channel_free	(CHANNEL **c);
 void		channel_free_epg(CHANNEL *c);
 
@@ -298,6 +314,7 @@ NIT *		nit_new			(uint16_t ts_id, char *freq, char *modulation, char *symbol_rat
 void		nit_free		(NIT **nit);
 
 void		proxy_log		(INPUT *r, char *msg);
+void		proxy_logf		(INPUT *r, const char *fmt, ...);
 void		proxy_close		(LIST *inputs, INPUT **input);
 
 ssize_t		handle_rtp_input (uint8_t *buf, size_t len, INPUT *input);

@@ -374,6 +374,22 @@ int in_worktime(int start, int end) {
 	return 1;
 }
 
+void check_cc(INPUT *r, PIDREF_ENTRY *entry, uint8_t *ts_packet) {
+    // skip check if the Adaptation field control field indicates no payload
+    if (!ts_packet_has_payload(ts_packet)) {
+        return;
+    }
+
+	uint8_t cc = ts_packet_get_cont(ts_packet);
+    uint8_t cc_expected = (entry->cc + 1) & 0x0F;
+    if (cc != cc_expected && entry->cc != -1) {
+		proxy_logf(r, "discontinuity in PID %" PRIu16 " found: %" PRIu8 " expected: %" PRIu8, entry->org_pid, cc, cc_expected);
+        entry->cc_errors++;
+        r->cc_errors++;
+    }
+    entry->cc = cc;
+}
+
 void * input_stream(void *self) {
 	INPUT *r = self;
 	INPUT_STREAM *s = &r->stream;
@@ -421,6 +437,7 @@ void * input_stream(void *self) {
 		ssize_t rtp_length;
  		int i = 0;
 		int max_zero_reads = MAX_ZERO_READS;
+		uint64_t corrupt_packets = 0;
 
 		// Reset all stream parameters on reconnect.
 		input_stream_reset(r);
@@ -471,6 +488,30 @@ void * input_stream(void *self) {
 				if (r->dienow)
 					goto QUIT;
 				uint8_t *ts_packet = (uint8_t *)buffer + i;
+
+				// handle packets with Transport error indicator (TEI) set
+				if (ts_packet_is_tei_set(ts_packet)) {
+					if (!corrupt_packets) {
+						r->corruption_stats.events++;
+						proxy_log(r, "corrupted package received");
+					}
+					if (corrupt_packets % 1000 == 0) {
+						proxy_logf(
+							r, "still getting corrupt input packets (%" PRIu64 ")",
+							corrupt_packets);
+					}
+					r->corruption_stats.count++;
+					corrupt_packets += 1;
+					if (r->channel->corrupted_packets_mode == 1) {
+						continue;
+					}
+				} else if (corrupt_packets) {
+					proxy_logf(r,
+							   "corruption ended after %" PRIu64 " packets",
+							   corrupt_packets);
+					corrupt_packets = 0;
+				}
+
 				uint16_t pid = ts_packet_get_pid(ts_packet);
 
 				if(pid == 0x1FFF) { // NULL packets (Stuffing)
@@ -511,7 +552,11 @@ void * input_stream(void *self) {
 
 				// Yes, we have enough data to start outputing
 				if (s->input_pcr) {
-					pidref_change_packet_pid(ts_packet, pid, s->pidref);
+					PIDREF_ENTRY *pidref_entry = pidref_change_packet_pid(ts_packet, pid, s->pidref);
+
+					if (pidref_entry)
+						check_cc(r, pidref_entry, ts_packet);
+
 					input_buffer_add(r, ts_packet, TS_PACKET_SIZE);
 					if (!r->input_ready)
 						r->input_ready = 1;

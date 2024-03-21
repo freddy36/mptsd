@@ -23,6 +23,8 @@
 typedef struct {
 	uint16_t org_pid;
 	uint16_t new_pid;
+	int8_t cc;
+    uint64_t cc_errors;
 } PIDREF_ENTRY;
 
 typedef struct {
@@ -37,9 +39,10 @@ void		pidref_free	(PIDREF **ref);
 int			pidref_add	(PIDREF *ref, uint16_t org_pid, uint16_t new_pid);
 int			pidref_del	(PIDREF *ref, uint16_t org_pid);
 
+PIDREF_ENTRY *	pidref_get_pidref_entry		(PIDREF *ref, uint16_t org_pid);
 uint16_t	pidref_get_new_pid			(PIDREF *ref, uint16_t org_pid);
 
-int			pidref_change_packet_pid	(uint8_t *ts_packet, uint16_t packet_pid, PIDREF *ref);
+PIDREF_ENTRY *	pidref_change_packet_pid	(uint8_t *ts_packet, uint16_t packet_pid, PIDREF *ref);
 
 void		pidref_dump	(PIDREF *ref);
 

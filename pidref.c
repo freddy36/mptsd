@@ -16,6 +16,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301, USA.
  */
 #include <stdlib.h>
+#include <inttypes.h>
 
 #include "libfuncs/log.h"
 #include "libtsfuncs/tsfuncs.h"
@@ -46,6 +47,8 @@ int pidref_add(PIDREF *ref, uint16_t org_pid, uint16_t new_pid) {
 		if (!entry->org_pid) {
 			entry->org_pid = org_pid;
 			entry->new_pid = new_pid;
+			entry->cc = -1;
+			entry->cc_errors = 0;
 			return 1;
 		}
 	}
@@ -67,26 +70,34 @@ int pidref_del(PIDREF *ref, uint16_t org_pid) {
 	return 0;
 }
 
-uint16_t pidref_get_new_pid(PIDREF *ref, uint16_t org_pid) {
+PIDREF_ENTRY *pidref_get_pidref_entry(PIDREF *ref, uint16_t org_pid) {
 	int i;
 	if (!org_pid)
-		return 0;
+		return NULL;
 	for (i=0;i<ref->num;i++) {
 		PIDREF_ENTRY *entry = &ref->entries[i];
 		if (entry->org_pid == org_pid) {
-			return entry->new_pid;
+			return entry;
 		}
+	}
+	return NULL;
+}
+
+uint16_t pidref_get_new_pid(PIDREF *ref, uint16_t org_pid) {
+	PIDREF_ENTRY *entry = pidref_get_pidref_entry(ref, org_pid);
+	if (entry) {
+		return entry->new_pid;
 	}
 	return 0;
 }
 
-int pidref_change_packet_pid(uint8_t *ts_packet, uint16_t packet_pid, PIDREF *ref) {
-	uint16_t new_pid = pidref_get_new_pid(ref, packet_pid);
-	if (new_pid) {
-		ts_packet_set_pid(ts_packet, new_pid);
-		return new_pid;
+PIDREF_ENTRY *pidref_change_packet_pid(uint8_t *ts_packet, uint16_t packet_pid, PIDREF *ref) {
+	PIDREF_ENTRY *entry = pidref_get_pidref_entry(ref, packet_pid);
+	if (entry) {
+		ts_packet_set_pid(ts_packet, entry->new_pid);
+		return entry;
 	}
-	return 0;
+	return NULL;
 }
 
 void pidref_dump(PIDREF *ref) {

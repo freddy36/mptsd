@@ -124,7 +124,7 @@ void chansrc_set(CHANNEL *c, uint8_t src_id) {
 
 
 
-CHANNEL *channel_new(int service_id, int is_radio, const char *id, const char *name, int eit_mode, const char *source, int channel_index, int lcn, int is_lcn_visible){
+CHANNEL *channel_new(int service_id, int is_radio, const char *id, const char *name, int eit_mode, int corrupted_packets_mode, const char *source, int channel_index, int lcn, int is_lcn_visible){
 
     if (channel_index<=0 || channel_index>=256)
     {
@@ -145,8 +145,8 @@ CHANNEL *channel_new(int service_id, int is_radio, const char *id, const char *n
 	c->id = strdup(id);
 	c->name = strdup(name);
 	c->eit_mode = eit_mode;
+	c->corrupted_packets_mode = corrupted_packets_mode;
 	chansrc_add(c, source);
-
 
 	return c;
 }
@@ -263,6 +263,10 @@ INPUT * input_new(const char *name, CHANNEL *channel) {
 	r->traffic_stats.min.traffic = UINT64_MAX;
 	r->traffic_stats.min.kpbs = DBL_MAX;
 	r->traffic_stats.min.padding = DBL_MAX;
+
+	for (size_t i = 0; i < sizeof(r->pids) / sizeof(r->pids[0]); i++) {
+		r->pids[i].cc = -1;
+	}
 
 	if (config->write_input_file) {
 		if (asprintf(&tmp, "mptsd-input-%s.ts", channel->id) > 0)
